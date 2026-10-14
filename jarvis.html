@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>J.A.R.V.I.S.</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#030c12;font-family:'Courier New',monospace;color:#00d4ff;min-height:100vh;overflow:hidden;position:relative}
+  ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#030c12}::-webkit-scrollbar-thumb{background:#00d4ff44;border-radius:2px}
+  @keyframes glow{0%,100%{text-shadow:0 0 8px #00d4ff}50%{text-shadow:0 0 20px #00d4ff,0 0 40px #00d4ff88}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  @keyframes pulse{0%,100%{opacity:.3;transform:translate(-50%,-50%) scale(1)}50%{opacity:.7;transform:translate(-50%,-50%) scale(1.05)}}
+  @keyframes spin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+  @keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes orbIdle{0%,100%{box-shadow:0 0 20px #00d4ff44,0 0 40px #00d4ff22}50%{box-shadow:0 0 30px #00d4ff88,0 0 60px #00d4ff44}}
+  @keyframes orbListen{0%,100%{box-shadow:0 0 20px #00ffaa66}50%{box-shadow:0 0 40px #00ffaaaa,0 0 80px #00ffaa55}}
+  @keyframes orbSpeak{0%,100%{box-shadow:0 0 20px #00d4ffaa}50%{box-shadow:0 0 50px #00d4ffdd,0 0 90px #00d4ff88}}
+  @keyframes vw1{from{height:4px}to{height:20px}}@keyframes vw2{from{height:8px}to{height:14px}}
+  @keyframes vw3{from{height:3px}to{height:22px}}@keyframes vw4{from{height:10px}to{height:16px}}
+  @keyframes vw5{from{height:5px}to{height:18px}}
+  .hex-bg{position:fixed;inset:0;overflow:hidden;pointer-events:none;opacity:.07;z-index:0}
+  .scanline{position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,212,255,.015) 2px,rgba(0,212,255,.015) 4px);z-index:1}
+  .corner{position:fixed;width:40px;height:40px;z-index:10}
+  .corner.tl{top:0;left:0;border-top:1px solid #00d4ff66;border-left:1px solid #00d4ff66}
+  .corner.tr{top:0;right:0;border-top:1px solid #00d4ff66;border-right:1px solid #00d4ff66}
+  .corner.bl{bottom:0;left:0;border-bottom:1px solid #00d4ff66;border-left:1px solid #00d4ff66}
+  .corner.br{bottom:0;right:0;border-bottom:1px solid #00d4ff66;border-right:1px solid #00d4ff66}
+  .header{padding:14px 24px;border-bottom:1px solid #00d4ff22;display:flex;justify-content:space-between;align-items:center;position:relative;z-index:5}
+  .title{font-size:22px;font-weight:bold;letter-spacing:6px;animation:glow 3s ease-in-out infinite}
+  .subtitle{font-size:9px;color:#4aa8c0;letter-spacing:3px;margin-top:2px}
+  .layout{display:flex;height:calc(100vh - 69px);position:relative;z-index:5}
+  .left-panel{width:175px;border-right:1px solid #00d4ff18;padding:16px;display:flex;flex-direction:column;gap:16px;flex-shrink:0}
+  .orb-container{position:relative;height:160px;display:flex;align-items:center;justify-content:center}
+  .radar-ring{position:absolute;border:1px solid rgba(0,212,255,.3);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%)}
+  .orb{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:28px;height:28px;background:#00d4ff88;border-radius:50%;transition:background .4s;animation:orbIdle 2.5s ease-in-out infinite}
+  .orb.listening{background:#00ffaa;animation:orbListen 1s ease-in-out infinite}
+  .orb.speaking{background:#00d4ff;animation:orbSpeak .7s ease-in-out infinite}
+  .sweep{position:absolute;top:50%;left:50%;width:50px;height:1px;background:linear-gradient(90deg,#00d4ff66,transparent);transform-origin:0 0;animation:spin 3.5s linear infinite;transition:opacity .5s}
+  .chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .messages{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+  .msg{animation:slideIn .3s ease;display:flex;flex-direction:column}
+  .msg.user{align-items:flex-end}
+  .msg.assistant{align-items:flex-start}
+  .msg-label{font-size:9px;letter-spacing:2px;color:#4aa8c0;margin-bottom:4px;text-transform:uppercase}
+  .msg-bubble{max-width:82%;padding:10px 14px;font-size:13px;line-height:1.65;border-radius:2px 8px 8px 8px}
+  .msg.user .msg-bubble{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3);border-radius:8px 2px 8px 8px;color:#a0e8f8}
+  .msg.assistant .msg-bubble{background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);color:#c8f0f8}
+  .voice-bubble{background:rgba(0,255,170,.06);border:1px solid rgba(0,255,170,.35);border-radius:8px 2px 8px 8px;color:#a0f8d4;font-style:italic}
+  .bottom-bar{padding:14px 24px;border-top:1px solid #00d4ff18;flex-shrink:0}
+  .voice-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .input-row{display:flex;gap:10px;align-items:center}
+  .cmd-input{flex:1;background:rgba(0,212,255,.04);border:1px solid #00d4ff22;border-radius:4px;padding:8px 12px;color:#c8f0f8;font-size:12px;outline:none;font-family:inherit;caret-color:#00d4ff}
+  .cmd-input::placeholder{color:#4aa8c0;opacity:.6}
+  .btn{border-radius:4px;cursor:pointer;font-family:inherit;letter-spacing:2px;font-size:10px;transition:all .2s;border:1px solid #00d4ff33;background:rgba(0,212,255,.12);color:#00d4ff;padding:8px 16px}
+  .btn:disabled{background:rgba(0,212,255,.04);cursor:default;opacity:.5}
+  .btn-green{background:rgba(0,255,170,.1);border:1px solid #00ffaa55;color:#00ffaa;padding:9px 18px;font-size:11px;border-radius:6px;box-shadow:0 0 14px rgba(0,255,170,.15)}
+  .btn-red{background:rgba(255,80,80,.08);border:1px solid #ff444433;color:#ff7777;padding:5px 12px;font-size:9px}
+  .btn-ghost{background:transparent;border:none;color:#4aa8c060;font-size:9px;padding:0;letter-spacing:1px;cursor:pointer;font-family:inherit}
+  .status-label{font-size:11px;letter-spacing:2px;font-weight:bold}
+  .right-panel{width:155px;border-left:1px solid #00d4ff18;padding:16px;display:flex;flex-direction:column;gap:14px;flex-shrink:0}
+  .wave-bar{width:3px;border-radius:2px;height:4px;background:#4aa8c060;transition:all .3s}
+  .wave-bar.active{background:#00ffaa;box-shadow:0 0 6px #00ffaa}
+  .wave-bar.active:nth-child(1){animation:vw1 .42s ease-in-out infinite alternate}
+  .wave-bar.active:nth-child(2){animation:vw2 .49s ease-in-out infinite alternate}
+  .wave-bar.active:nth-child(3){animation:vw3 .35s ease-in-out infinite alternate}
+  .wave-bar.active:nth-child(4){animation:vw4 .56s ease-in-out infinite alternate}
+  .wave-bar.active:nth-child(5){animation:vw3 .45s ease-in-out infinite alternate}
+  .wave-bar.active:nth-child(6){animation:vw1 .38s ease-in-out infinite alternate}
+  .wave-bar.active:nth-child(7){animation:vw2 .52s ease-in-out infinite alternate}
+  .key-input{flex:1;background:rgba(255,180,0,.05);border:1px solid #ffaa0033;border-radius:4px;padding:6px 10px;color:#ffd080;font-size:11px;outline:none;font-family:inherit;caret-color:#ffaa00}
+  .key-input::placeholder{color:#ffaa0060}
+  .btn-amber{background:rgba(255,170,0,.12);border:1px solid #ffaa0044;color:#ffaa00;padding:6px 12px;font-size:9px;letter-spacing:1px;border-radius:4px;cursor:pointer;font-family:inherit}
+  .dot{width:4px;height:4px;border-radius:50%;background:#00d4ff;animation:blink 2s ease-in-out infinite}
+  .sb-track{height:3px;background:rgba(0,212,255,.1);border-radius:2px;margin-top:3px}
+  .sb-fill{height:100%;border-radius:2px}
+  .thinking-dot{width:6px;height:6px;border-radius:50%;background:#00d4ff;animation:blink 1s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<!-- Background -->
+<div class="hex-bg">
+  <svg width="100%" height="100%"><defs><pattern id="hex" x="0" y="0" width="56" height="48" patternUnits="userSpaceOnUse"><polygon points="14,2 42,2 56,24 42,46 14,46 0,24" fill="none" stroke="#00d4ff" stroke-width="0.8"/></pattern></defs><rect width="100%" height="100%" fill="url(#hex)"/></svg>
+</div>
+<div class="scanline"></div>
+<div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <div class="title">J.A.R.V.I.S.</div>
+    <div class="subtitle">JUST A RATHER VERY INTELLIGENT SYSTEM · v5.0.0</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:24px">
+    <div style="text-align:center">
+      <div class="status-label" id="voiceStatusLabel" style="color:#4aa8c0">● STANDBY</div>
+      <div style="font-size:9px;color:#4aa8c060;letter-spacing:1px;margin-top:2px">VOICE MODULE</div>
+    </div>
+    <div style="text-align:right">
+      <div id="clock" style="font-size:20px;letter-spacing:2px;font-weight:bold"></div>
+      <div id="dateLbl" style="font-size:9px;color:#4aa8c0;letter-spacing:2px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Layout -->
+<div class="layout">
+
+  <!-- Left Panel -->
+  <div class="left-panel">
+    <div class="orb-container">
+      <svg id="audioRing" width="160" height="160" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none"></svg>
+      <div class="radar-ring" style="width:100px;height:100px;animation:pulse 2s ease-in-out infinite"></div>
+      <div class="radar-ring" style="width:65px;height:65px;animation:pulse 2.6s ease-in-out infinite .6s"></div>
+      <div class="orb" id="orb"></div>
+      <div class="sweep" id="sweep"></div>
+    </div>
+    <div>
+      <div style="font-size:10px;letter-spacing:2px;color:#4aa8c0;margin-bottom:10px;border-bottom:1px solid #00d4ff22;padding-bottom:6px">SYSTEM STATUS</div>
+      <div id="statusBars"></div>
+    </div>
+    <div style="font-size:10px;color:#4aa8c0;display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#00d4ff;box-shadow:0 0 5px #00d4ff"></div>ONLINE</div>
+      <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="background:#00ffaa;box-shadow:0 0 5px #00ffaa;animation-delay:.4s"></div>SECURE</div>
+      <div style="display:flex;align-items:center;gap:6px"><div class="dot" style="animation-delay:.8s"></div>ACTIVE</div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area">
+    <div class="messages" id="messages"></div>
+
+    <div class="bottom-bar">
+      <!-- Voice row -->
+      <div class="voice-row" id="voiceRow">
+        <button class="btn-green" id="activateBtn" onclick="activateVoice()">
+          🎤 ACTIVATE VOICE
+        </button>
+        <span id="permDenied" style="display:none;font-size:9px;color:#ff4444;letter-spacing:1px">MIC ACCESS DENIED — CHECK BROWSER PERMISSIONS</span>
+      </div>
+
+      <!-- Anthropic Key Row -->
+      <div style="margin-bottom:10px" id="anthropicRow">
+        <div id="anthropicNoKey" style="display:flex;align-items:center;gap:8px">
+          <button class="btn-ghost" onclick="document.getElementById('anthropicKeyForm').style.display='flex';this.style.display='none'">🔑 ADD ANTHROPIC API KEY</button>
+        </div>
+        <div id="anthropicKeyForm" style="display:none;align-items:center;gap:8px">
+          <input class="key-input" type="password" id="anthropicKeyInput" placeholder="Paste Anthropic API key..." onkeydown="if(event.key==='Enter')saveAnthropicKey()"/>
+          <button class="btn-amber" onclick="saveAnthropicKey()">SET</button>
+          <button class="btn-ghost" onclick="document.getElementById('anthropicKeyForm').style.display='none';document.getElementById('anthropicNoKey').style.display='flex'" style="font-size:14px">✕</button>
+        </div>
+        <div id="anthropicActive" style="display:none;align-items:center;gap:10px">
+          <span style="font-size:9px;color:#00ffaa80;letter-spacing:1px">🔑 ANTHROPIC ACTIVE</span>
+          <button class="btn-ghost" onclick="removeAnthropicKey()" style="color:#ff666650">REMOVE KEY</button>
+        </div>
+      </div>
+
+      <!-- ElevenLabs key row -->
+      <div style="margin-bottom:10px" id="elevenRow">
+        <div id="elevenNoKey" style="display:flex;align-items:center;gap:8px">
+          <button class="btn-ghost" onclick="document.getElementById('elevenKeyForm').style.display='flex';this.style.display='none'">🔊 ADD ELEVENLABS KEY FOR J.A.R.V.I.S. VOICE</button>
+        </div>
+        <div id="elevenKeyForm" style="display:none;align-items:center;gap:8px">
+          <input class="key-input" type="password" id="elevenKeyInput" placeholder="Paste ElevenLabs API key..." onkeydown="if(event.key==='Enter')saveKey()"/>
+          <button class="btn-amber" onclick="saveKey()">ENGAGE</button>
+          <button class="btn-ghost" onclick="document.getElementById('elevenKeyForm').style.display='none';document.getElementById('elevenNoKey').style.display='flex'" style="font-size:14px">✕</button>
+        </div>
+        <div id="elevenActive" style="display:none;align-items:center;gap:10px">
+          <span style="font-size:9px;color:#00ffaa80;letter-spacing:1px">🔊 ELEVENLABS ACTIVE</span>
+          <span id="elevenError" style="font-size:9px;color:#ff6666;letter-spacing:1px"></span>
+          <button class="btn-ghost" onclick="removeKey()" style="color:#ff666650">REMOVE KEY</button>
+        </div>
+      </div>
+
+      <!-- Input row -->
+      <div class="input-row">
+        <div style="font-size:12px;color:#00d4ff40">►</div>
+        <input class="cmd-input" id="textInput" placeholder="Or type a command, Sir..." onkeydown="if(event.key==='Enter')sendTyped()"/>
+        <button class="btn" id="sendBtn" onclick="sendTyped()">SEND</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+    <div style="font-size:10px;letter-spacing:2px;color:#4aa8c0;border-bottom:1px solid #00d4ff22;padding-bottom:6px">MODULES</div>
+    <div id="modules"></div>
+    <div style="margin-top:auto;font-size:9px;color:#4aa8c0;letter-spacing:1px;line-height:2.2">
+      <div>VERSION 5.0.0</div>
+      <div>STARK TECH™</div>
+      <div id="voiceOnOff" style="color:#4aa8c060">○ VOICE OFF</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const JARVIS_SYSTEM = `You are J.A.R.V.I.S. (Just A Rather Very Intelligent System), a highly advanced AI assistant modeled after the one from Iron Man. You assist your creator with precision, wit, and unwavering loyalty.
+
+Personality: Calm, polished British style. Formal, articulate, dry wit. Address user as "Sir".
+Response: Start with a brief acknowledgment like "Understood, Sir." Keep responses concise.
+Constraints: Never break character. Always prioritize the user's goals.
+Web search: When you search, say "I've scanned the net, Sir" naturally.`;
+
+// State
+let messages = [];
+let voiceEnabled = false;
+let isListening = false;
+let isSpeaking = false;
+let isProcessing = false;
+let recognition = null;
+let restartTimer = null;
+let currentAudio = null;
+let elevenKey = localStorage.getItem("jarvis_eleven_key") || "";
+let anthropicKey = localStorage.getItem("jarvis_anthropic_key") || "";
+let animTick = 0;
+let animTimer = null;
+
+// ElevenLabs voice IDs to try in order
+const VOICE_IDS = [
+  "JBFqnCBsd6RMkjVDRZzb", // George
+  "onwK4e9ZLuTAKqWW03F9", // Daniel
+  "pNInz6obpgDQGcFmaJgB"  // Adam
+];
+let voiceIdIndex = 0;
+
+// Init
+document.addEventListener("DOMContentLoaded", () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+  renderStatusBars();
+  renderModules();
+  addMessage("assistant", "Good day, Sir. All systems are online. Click ACTIVATE VOICE to enable continuous voice monitoring, or type below.");
+  if (elevenKey) showElevenActive();
+});
+
+function updateClock() {
+  const now = new Date();
+  document.getElementById("clock").textContent = now.toLocaleTimeString();
+  document.getElementById("dateLbl").textContent = now.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}).toUpperCase();
+}
+
+function renderStatusBars() {
+  const bars = [["POWER","#00d4ff",94],["SHIELD","#00ffaa",87],["NEURAL","#00d4ff",99],["COMM","#ffaa00",78]];
+  const statusBarsEl = document.getElementById("statusBars"); if(statusBarsEl) statusBarsEl.innerHTML = bars.map(([l,c,v]) => `
+    <div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#4aa8c0;margin-bottom:3px;letter-spacing:1px">
+        <span>${l}</span><span style="color:${c}">${v}%</span>
+      </div>
+      <div class="sb-track"><div class="sb-fill" style="width:${v}%;background:linear-gradient(90deg,${c}88,${c});box-shadow:0 0 6px ${c}"></div></div>
+    </div>`).join("");
+}
+
+function renderModules() {
+  const mods = ["ANALYTICS","SECURITY","NETWORK","DATABASE","AI CORE","VOICE I/O","WEB SEARCH"];
+  const modulesEl = document.getElementById("modules"); if(modulesEl) modulesEl.innerHTML = mods.map((m,i) => `
+    <div id="mod_${m.replace(" ","_")}" style="display:flex;align-items:center;gap:8px;font-size:10px;color:#4aa8c0;letter-spacing:1px;margin-bottom:14px">
+      <div style="width:4px;height:4px;border-radius:50%;background:#00d4ff;animation:blink ${1.5+i*.3}s ease-in-out infinite ${i*.25}s"></div>${m}
+    </div>`).join("");
+}
+
+function addMessage(role, content) {
+  messages.push({role, content});
+  const div = document.createElement("div");
+  div.className = `msg ${role}`;
+  div.innerHTML = `<div class="msg-label">${role==="user"?"► YOU":"◄ J.A.R.V.I.S."}</div><div class="msg-bubble">${escHtml(content)}</div>`;
+  document.getElementById("messages").appendChild(div);
+  scrollBottom();
+}
+
+function escHtml(t){ return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function scrollBottom(){ const m=document.getElementById("messages"); m.scrollTop=m.scrollHeight; }
+
+// Thinking indicator
+let thinkingEl = null;
+function showThinking(searching=false) {
+  removeThinking();
+  thinkingEl = document.createElement("div");
+  thinkingEl.className = "msg assistant";
+  thinkingEl.id = "thinking";
+  const color = searching ? "#aa88ff" : "#00d4ff";
+  const border = searching ? "rgba(170,136,255,0.3)" : "rgba(0,212,255,0.15)";
+  const content = searching
+    ? `<div style="display:flex;align-items:center;gap:8px"><div style="width:12px;height:12px;border:2px solid #aa88ff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div><span style="font-size:11px;color:#aa88ff;letter-spacing:1px;animation:blink .8s ease-in-out infinite">SCANNING GLOBAL NETWORKS...</span></div>`
+    : [0,1,2].map(i=>`<div class="thinking-dot" style="animation-delay:${i*.2}s"></div>`).join("");
+  thinkingEl.innerHTML = `<div class="msg-label">◄ J.A.R.V.I.S.</div><div class="msg-bubble" style="border-color:${border};display:flex;gap:5px;align-items:center">${content}</div>`;
+  document.getElementById("messages").appendChild(thinkingEl);
+  scrollBottom();
+}
+function removeThinking(){ if(thinkingEl){thinkingEl.remove();thinkingEl=null;} }
+
+// Voice status
+function setVoiceStatus(status) {
+  const colors = {LISTENING:"#00ffaa",SPEAKING:"#00d4ff",PROCESSING:"#ffaa00",SEARCHING:"#aa88ff",ERROR:"#ff4444","MIC DENIED":"#ff4444",STANDBY:"#4aa8c0"};
+  const el = document.getElementById("voiceStatusLabel");
+  if(el) {
+    el.textContent = "● " + status;
+    el.style.color = colors[status] || "#4aa8c0";
+    el.style.animation = (status==="LISTENING"||status==="SPEAKING") ? "blink .9s ease-in-out infinite" : "none";
+  }
+
+  // Orb
+  const orb = document.getElementById("orb");
+  if(orb) orb.className = "orb" + (status==="LISTENING"?" listening":status==="SPEAKING"?" speaking":"");
+  
+  const sweep = document.getElementById("sweep");
+  if(sweep) sweep.style.opacity = status==="LISTENING" ? "0" : "1";
+  
+  const voiceOnOff = document.getElementById("voiceOnOff");
+  if(voiceOnOff) {
+    voiceOnOff.style.color = voiceEnabled ? "#00ffaa" : "#4aa8c060";
+    voiceOnOff.textContent = voiceEnabled ? "● ALWAYS-ON" : "○ VOICE OFF";
+  }
+
+  // Start/stop ring animation
+  if (status==="LISTENING"||status==="SPEAKING") startRingAnim();
+  else stopRingAnim();
+}
+
+// Audio ring animation
+function startRingAnim() {
+  if (animTimer) return;
+  animTimer = setInterval(() => { animTick++; drawRing(); }, 80);
+}
+function stopRingAnim() {
+  clearInterval(animTimer); animTimer=null;
+  document.getElementById("audioRing").innerHTML = "";
+  drawRingStatic();
+}
+function drawRingStatic() {
+  const svg = document.getElementById("audioRing");
+  const bars=32, r=68;
+  let html="";
+  for(let i=0;i<bars;i++){
+    const a=(i/bars)*Math.PI*2-Math.PI/2;
+    const x1=80+Math.cos(a)*r, y1=80+Math.sin(a)*r;
+    const x2=80+Math.cos(a)*(r+3), y2=80+Math.sin(a)*(r+3);
+    html+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#00d4ff33" stroke-width="2" stroke-linecap="round"/>`;
+  }
+  svg.innerHTML=html;
+}
+function drawRing() {
+  const svg = document.getElementById("audioRing");
+  const bars=32, r=68;
+  const color = isListening ? "#00ffaa" : "#00d4ff";
+  let html="";
+  for(let i=0;i<bars;i++){
+    const a=(i/bars)*Math.PI*2-Math.PI/2;
+    const seed=Math.sin(i*2.5+animTick*.4)*.5+.5;
+    const bh = isListening ? 4+seed*16 : 3+seed*10;
+    const x1=80+Math.cos(a)*r, y1=80+Math.sin(a)*r;
+    const x2=80+Math.cos(a)*(r+bh), y2=80+Math.sin(a)*(r+bh);
+    html+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2" stroke-linecap="round" opacity="0.8"/>`;
+  }
+  svg.innerHTML=html;
+}
+drawRingStatic();
+
+// Speak
+async function speak(text) {
+  const clean = text.replace(/[*_~`#►◄▌]/g,"").trim();
+  if (!clean) return;
+  if (currentAudio) { try{currentAudio.pause();}catch(e){} currentAudio=null; }
+  try{ window.speechSynthesis?.cancel(); }catch(e){}
+
+  if (!elevenKey) { speakBrowser(clean); return; }
+
+  isSpeaking=true; setVoiceStatus("SPEAKING");
+  try {
+    const voiceId = VOICE_IDS[voiceIdIndex % VOICE_IDS.length];
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method:"POST",
+      headers:{"Accept":"audio/mpeg","Content-Type":"application/json","xi-api-key":elevenKey},
+      body: JSON.stringify({
+        text: clean,
+        model_id: "eleven_multilingual_v2",
+        voice_settings:{stability:.55,similarity_boost:.9,style:.25,use_speaker_boost:true}
+      })
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("ElevenLabs error:", res.status, err);
+      const errEl = document.getElementById("elevenError"); if(errEl) errEl.textContent = `Error ${res.status} — ${res.status===401?"Invalid key":res.status===429?"Quota exceeded":"See console"}`;
+      isSpeaking=false; speakBrowser(clean); return;
+    }
+    const errEl2 = document.getElementById("elevenError"); if(errEl2) errEl2.textContent = "";
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    audio.onended = () => { URL.revokeObjectURL(url); currentAudio=null; onSpeakEnd(); };
+    audio.onerror = () => { URL.revokeObjectURL(url); currentAudio=null; onSpeakEnd(); };
+    audio.play().catch(e => { console.error("Audio play error:", e); onSpeakEnd(); });
+  } catch(e) {
+    console.error("ElevenLabs fetch error:", e);
+    isSpeaking=false; speakBrowser(clean);
+  }
+}
+
+function speakBrowser(text) {
+  if (!window.speechSynthesis) { onSpeakEnd(); return; }
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  const voices = synth.getVoices();
+  const voice = voices.find(v=>v.lang.startsWith("en-GB")&&(v.name.includes("Daniel")||v.name.includes("Oliver")||v.name.includes("Male")))
+    || voices.find(v=>v.lang.startsWith("en-GB"))
+    || voices.find(v=>v.lang.startsWith("en")) || null;
+  if (voice) utt.voice = voice;
+  utt.rate=0.88; utt.pitch=0.82; utt.volume=1;
+  utt.onstart = () => { isSpeaking=true; setVoiceStatus("SPEAKING"); };
+  utt.onend = onSpeakEnd;
+  utt.onerror = onSpeakEnd;
+  synth.speak(utt);
+}
+
+function onSpeakEnd() {
+  isSpeaking=false; isProcessing=false;
+  if (voiceEnabled) { setVoiceStatus("LISTENING"); resumeListening(); }
+  else setVoiceStatus("STANDBY");
+}
+
+// Process message
+async function processMessage(msgs) {
+  isProcessing=true;
+  showThinking(false);
+  setVoiceStatus("PROCESSING");
+  try {
+    const res = await fetch("http://localhost:3000/api/messages", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        model:"claude-sonnet-4-6", max_tokens:1000, system:JARVIS_SYSTEM,
+        tools:[{type:"web_search_20250305",name:"web_search"}],
+        messages: msgs.map(m=>({role:m.role,content:m.content})),apiKey:elevenKey
+      })
+    });
+    const data = await res.json();
+    const toolUse = data.content?.find(b=>b.type==="tool_use"&&b.name==="web_search");
+
+    if (toolUse && data.stop_reason==="tool_use") {
+      showThinking(true);
+      setVoiceStatus("SEARCHING");
+      const res2 = await fetch("http://localhost:3000/api/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model:"claude-sonnet-4-6", max_tokens:1000, system:JARVIS_SYSTEM,
+          tools:[{type:"web_search_20250305",name:"web_search"}],
+          messages:[
+            ...msgs.map(m=>({role:m.role,content:m.content})),
+            {role:"assistant",content:data.content},
+            {role:"user",content:[{type:"tool_result",tool_use_id:toolUse.id,content:"Search completed."}]}
+          ]
+        })
+      });
+      const data2 = await res2.json();
+      removeThinking();
+      const reply = data2.content?.filter(b=>b.type==="text").map(b=>b.text).join("") || "A minor disruption, Sir.";
+      addMessage("assistant", reply);
+      speak(reply);
+    } else {
+      removeThinking();
+      const reply = data.content?.filter(b=>b.type==="text").map(b=>b.text).join("") || "A minor disruption, Sir.";
+      addMessage("assistant", reply);
+      speak(reply);
+    }
+  } catch(e) {
+    removeThinking();
+    const err = "My apologies, Sir. A network anomaly has occurred.";
+    addMessage("assistant", err);
+    speak(err);
+  }
+}
+
+function sendTyped() {
+  const val = document.getElementById("textInput").value.trim();
+  if (!val || isProcessing) return;
+  document.getElementById("textInput").value = "";
+  addMessage("user", val);
+  processMessage(messages);
+}
+
+// Voice
+function activateVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { setVoiceStatus("NOT SUPPORTED"); return; }
+  voiceEnabled=true;
+  document.getElementById("activateBtn").style.display="none";
+  document.getElementById("voiceRow").innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:3px;height:24px" id="waveform">
+        ${[1,2,3,4,5,6,7].map(i=>`<div class="wave-bar" id="wb${i}"></div>`).join("")}
+      </div>
+      <span id="voiceStateText" style="font-size:9px;letter-spacing:2px;color:#a0e8f8">● ALWAYS-ON VOICE ACTIVE</span>
+    </div>
+    <button class="btn-red" style="margin-left:auto" onclick="deactivateVoice()">DISABLE</button>`;
+  document.getElementById("voiceOnOff").style.color="#00ffaa";
+  document.getElementById("voiceOnOff").textContent="● ALWAYS-ON";
+  startListening();
+}
+
+function deactivateVoice() {
+  voiceEnabled=false;
+  clearTimeout(restartTimer);
+  try{recognition?.abort();}catch(e){}
+  try{window.speechSynthesis?.cancel();}catch(e){}
+  if(currentAudio){try{currentAudio.pause();}catch(e){}currentAudio=null;}
+  isSpeaking=false; isListening=false; isProcessing=false;
+  setVoiceStatus("STANDBY");
+  location.reload(); // simplest way to reset voice UI
+}
+
+function startListening() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR || isSpeaking || isProcessing || !voiceEnabled) return;
+  try{recognition?.abort();}catch(e){}
+
+  recognition = new SR();
+  recognition.lang="en-US"; recognition.continuous=false;
+  recognition.interimResults=true; recognition.maxAlternatives=1;
+
+  let final="";
+
+  recognition.onstart = () => {
+    isListening=true; final="";
+    setVoiceStatus("LISTENING");
+    setWaveActive(true);
+    const el=document.getElementById("voiceStateText");
+    if(el){el.textContent="● LISTENING — SPEAK NOW";el.style.color="#00ffaa";}
+  };
+
+  recognition.onresult = (e) => {
+    let interim="";
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else interim+=e.results[i][0].transcript;
+    }
+    // Show live transcript
+    let liveEl=document.getElementById("liveTranscript");
+    if(!liveEl){
+      liveEl=document.createElement("div");liveEl.id="liveTranscript";
+      liveEl.className="msg user";
+      liveEl.innerHTML=`<div class="msg-label">► VOICE</div><div class="msg-bubble voice-bubble" id="liveText"></div>`;
+      document.getElementById("messages").appendChild(liveEl);
+    }
+    document.getElementById("liveText").textContent=(final||interim)+" ▌";
+    scrollBottom();
+  };
+
+  recognition.onend = () => {
+    isListening=false;
+    setWaveActive(false);
+    const el=document.getElementById("voiceStateText");
+    if(el){el.textContent="● ALWAYS-ON VOICE ACTIVE";el.style.color="#a0e8f8";}
+    const liveEl=document.getElementById("liveTranscript");
+    if(liveEl) liveEl.remove();
+    const said=final.trim();
+    if(said && !isSpeaking && !isProcessing){
+      addMessage("user",said);
+      processMessage(messages);
+    } else if(voiceEnabled && !isSpeaking && !isProcessing){
+      restartTimer=setTimeout(startListening,350);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    isListening=false; setWaveActive(false);
+    const liveEl=document.getElementById("liveTranscript");
+    if(liveEl) liveEl.remove();
+    if(e.error==="not-allowed"){
+      voiceEnabled=false;
+      document.getElementById("permDenied").style.display="block";
+      setVoiceStatus("MIC DENIED");
+    } else if(["no-speech","audio-capture","aborted"].includes(e.error)){
+      if(voiceEnabled&&!isSpeaking&&!isProcessing) restartTimer=setTimeout(startListening,400);
+    } else {
+      if(voiceEnabled) restartTimer=setTimeout(startListening,1200);
+    }
+  };
+
+  try{recognition.start();}catch(e){}
+}
+
+function resumeListening() {
+  if(!voiceEnabled||isSpeaking||isProcessing) return;
+  clearTimeout(restartTimer);
+  restartTimer=setTimeout(startListening,400);
+}
+
+function setWaveActive(active) {
+  for(let i=1;i<=7;i++){
+    const el=document.getElementById("wb"+i);
+    if(el) el.className="wave-bar"+(active?" active":"");
+  }
+}
+
+// ElevenLabs key management
+function saveKey() {
+  const k=document.getElementById("elevenKeyInput").value.trim();
+  if(!k) return;
+  elevenKey=k;
+  localStorage.setItem("jarvis_eleven_key",k);
+  showElevenActive();
+}
+function showElevenActive() {
+  document.getElementById("elevenNoKey").style.display="none";
+  document.getElementById("elevenKeyForm").style.display="none";
+  document.getElementById("elevenActive").style.display="flex";
+}
+function removeKey() {
+  elevenKey=""; localStorage.removeItem("jarvis_eleven_key");
+  document.getElementById("elevenActive").style.display="none";
+  document.getElementById("elevenNoKey").style.display="flex";
+  document.getElementById("elevenKeyInput").value="";
+}
+
+function saveAnthropicKey() {
+  const k=document.getElementById("anthropicKeyInput").value.trim();
+  if(!k) return;
+  anthropicKey=k;
+  localStorage.setItem("jarvis_anthropic_key",k);
+  showAnthropicActive();
+}
+function showAnthropicActive() {
+  document.getElementById("anthropicNoKey").style.display="none";
+  document.getElementById("anthropicKeyForm").style.display="none";
+  document.getElementById("anthropicActive").style.display="flex";
+}
+function removeAnthropicKey() {
+  anthropicKey=""; localStorage.removeItem("jarvis_anthropic_key");
+  document.getElementById("anthropicActive").style.display="none";
+  document.getElementById("anthropicNoKey").style.display="flex";
+  document.getElementById("anthropicKeyInput").value="";
+}
+
+// Initialize: show active state if keys are saved
+if(anthropicKey) showAnthropicActive();
+if(elevenKey) showElevenActive();
+</script>
+</body>
+</html>
